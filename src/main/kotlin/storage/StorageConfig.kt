@@ -71,9 +71,11 @@ object StorageConfig {
             props.store(FileWriter(resolveConfigFile(CONFIG_NAME), StandardCharsets.UTF_8), "SAVE")
         }
 
-    fun getCacheImagePath(fileName: String): File {
-        return basePath.resolve(CACHE_IMAGE_DIRECTORY).resolve(fileName)
+    fun getCacheImageFilePath(fileName: String): File {
+        return getCacheImageDir().resolve(fileName)
     }
+
+    fun getCacheImageDir(): File = basePath.resolve(CACHE_IMAGE_DIRECTORY)
 
     fun getDocPath(fileName: String, groupId: Long): File {
         return basePath.resolve(DOCUMENT_DIRECTORY).resolve("$groupId").resolve(fileName)

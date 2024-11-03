@@ -1,3 +1,5 @@
+import org.jetbrains.kotlin.backend.jvm.jvmPhases
+
 plugins {
     val kotlinVersion = "1.8.10"
     kotlin("jvm") version kotlinVersion
@@ -20,4 +22,7 @@ mirai {
 
 dependencies {
     implementation("org.apache.poi:poi-ooxml:5.2.3")
+}
+tasks.withType<JavaExec> {
+    jvmArgs = listOf("-Dmirai.message.allow.sending.file.message=true", "-Dfile.encoding=UTF-8")
 }

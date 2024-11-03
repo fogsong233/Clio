@@ -1,6 +1,7 @@
 package tech.fogsong.docx
 
 import kotlinx.coroutines.Dispatchers
+import org.apache.poi.common.usermodel.PictureType
 import org.apache.poi.xwpf.usermodel.*
 import tech.fogsong.storage.StorageConfig
 import java.time.LocalTime
@@ -15,6 +16,7 @@ class DocFlow private constructor() {
     private var questionMsgList = mutableListOf<DocMsgItem>()
     private var summaryText: String? = null
     private var timeStr: String = LocalTime.now().toString()
+
 
     fun addQuestionMsg(docMsgItem: DocMsgItem): DocFlow {
         questionMsgList.add(docMsgItem)
@@ -105,17 +107,19 @@ class DocFlow private constructor() {
                             // 插入图片
                             val nameStr = content.contentOrPath
                             with(Dispatchers.IO) {
-                                val imgPath = StorageConfig.getCacheImagePath(nameStr)
+                                val imgPath = StorageConfig.getCacheImageFilePath(nameStr)
                                 val originImage = ImageIO.read(imgPath)
                                 val width = originImage.width
                                 val height = originImage.height
-                                imgPath.inputStream().use { inputStream ->
+                                imgPath.inputStream().let { inputStream ->
                                     para.createRun().apply {
                                         val finalWidth = (A4_PAGE_WIDTH * 0.55).toInt()
                                         val finalHeight = finalWidth / width * height
                                         addPicture(
                                             inputStream,
-                                            Document.PICTURE_TYPE_JPEG,
+                                            if (nameStr.split(".")
+                                                    .last() == "png"
+                                            ) PictureType.PNG else PictureType.JPEG,
                                             nameStr,
                                             finalWidth,
                                             finalHeight
