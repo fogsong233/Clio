@@ -2,10 +2,11 @@ package tech.fogsong.docx
 
 import kotlinx.coroutines.Dispatchers
 import org.apache.poi.common.usermodel.PictureType
-import org.apache.poi.xwpf.usermodel.*
+import org.apache.poi.xwpf.usermodel.ParagraphAlignment
+import org.apache.poi.xwpf.usermodel.XWPFDocument
+import org.apache.poi.xwpf.usermodel.XWPFParagraph
+import org.apache.poi.xwpf.usermodel.XWPFRun
 import tech.fogsong.storage.StorageConfig
-import java.time.LocalTime
-import javax.imageio.ImageIO
 
 private const val A4_PAGE_WIDTH = 8420
 
@@ -15,7 +16,6 @@ class DocFlow private constructor() {
     private var discussionMsgList = mutableListOf<DocMsgItem>()
     private var questionMsgList = mutableListOf<DocMsgItem>()
     private var summaryText: String? = null
-    private var timeStr: String = LocalTime.now().toString()
 
 
     fun addQuestionMsg(docMsgItem: DocMsgItem): DocFlow {
@@ -56,7 +56,7 @@ class DocFlow private constructor() {
             createRun()
         }
         titleRun.apply {
-            setText(StorageConfig.genDocName(overview, groupId))
+            setText(StorageConfig.genDocName(overview))
             setFontSize(20)
             isBold = true
         }
@@ -108,22 +108,20 @@ class DocFlow private constructor() {
                             val nameStr = content.contentOrPath
                             with(Dispatchers.IO) {
                                 val imgPath = StorageConfig.getCacheImageFilePath(nameStr)
-                                val originImage = ImageIO.read(imgPath)
-                                val width = originImage.width
-                                val height = originImage.height
                                 imgPath.inputStream().let { inputStream ->
                                     para.createRun().apply {
                                         val finalWidth = (A4_PAGE_WIDTH * 0.55).toInt()
-                                        val finalHeight = finalWidth / width * height
+                                        val finalHeight = finalWidth
                                         addPicture(
                                             inputStream,
                                             if (nameStr.split(".")
                                                     .last() == "png"
                                             ) PictureType.PNG else PictureType.JPEG,
                                             nameStr,
-                                            finalWidth,
-                                            finalHeight
+                                            5000000,
+                                            5000000
                                         )
+                                        setText(nameStr)
                                     }
                                 }
                             }

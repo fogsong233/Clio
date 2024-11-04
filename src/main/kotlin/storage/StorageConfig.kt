@@ -35,7 +35,8 @@ object StorageConfig {
     private var docNum: Int? = null
     fun init(pluginFileExtensions: PluginFileExtensions) =
         pluginFileExtensions.apply {
-            val path = resolveDataPath("/")
+            basePath = resolveConfigFile(".")
+            val path = basePath.toPath()
             path.resolve(CACHE_IMAGE_DIRECTORY).let {
                 if (!it.exists()) {
                     it.createDirectory()
@@ -62,7 +63,6 @@ object StorageConfig {
                     props.load(FileReader(resolveConfigFile(CONFIG_NAME), StandardCharsets.UTF_8))
                 }
             }
-            basePath = resolveConfigFile("/")
             docNum = props.getProperty(ConfigKey.DOC_NUMBERS).toInt()
         }
 
@@ -78,10 +78,12 @@ object StorageConfig {
     fun getCacheImageDir(): File = basePath.resolve(CACHE_IMAGE_DIRECTORY)
 
     fun getDocPath(fileName: String, groupId: Long): File {
-        return basePath.resolve(DOCUMENT_DIRECTORY).resolve("$groupId").resolve(fileName)
+        return basePath.resolve(DOCUMENT_DIRECTORY).resolve("$groupId").apply {
+            if (!exists()) mkdirs()
+        }.resolve(fileName)
     }
 
-    fun genDocName(overview: String?, groupId: Long): String {
+    fun genDocName(overview: String?): String {
         val dateStr = LocalDate.now().toString()
         docNum = docNum!!.plus(1)
         return "[${docNum}][$dateStr]${overview ?: "问题"}.docx"

@@ -9,11 +9,9 @@ import net.mamoe.mirai.event.events.BotOnlineEvent
 import net.mamoe.mirai.event.events.GroupMessageEvent
 import net.mamoe.mirai.event.whileSelectMessages
 import net.mamoe.mirai.message.data.FileMessage
-import net.mamoe.mirai.message.data.Image
-import net.mamoe.mirai.message.data.MessageContent
+import net.mamoe.mirai.utils.ExternalResource.Companion.toExternalResource
 import tech.fogsong.docx.DocFlow
 import tech.fogsong.docx.GroupState
-import tech.fogsong.download
 import tech.fogsong.filterInEnableGroup
 import tech.fogsong.msg2DocMsgItem
 import tech.fogsong.pluginLog
@@ -23,7 +21,6 @@ import tech.fogsong.storage.props
 
 private var stateStack = mutableMapOf<Long, MutableList<GroupState>>()
 suspend fun KotlinPlugin.startBot() {
-
     val botId = props.getProperty(ConfigKey.BOT_ID).toLong()
     if (botId <= 0) {
         logger.pluginLog { "没有设置机器人qq号！" }
@@ -87,7 +84,7 @@ suspend fun KotlinPlugin.startBot() {
                     default {
                         // 设置超时
                         if (System.currentTimeMillis() - beforeTime >= 200000) {
-                            subject.sendMessage("问题超时，自动关闭")
+                            subject.sendMessage("timeout, auto close~")
                             stateStack[group.id]!!.removeLast()
                             return@default false
                         }
@@ -101,7 +98,7 @@ suspend fun KotlinPlugin.startBot() {
                 val newDocFlow = DocFlow.create()
                     .addQuestionMsg(this.msg2DocMsgItem())
                     .let { docList.add(it) }
-                subject.sendMessage("开始记录")
+                subject.sendMessage("clio~")
                 stateStack[group.id]!!.let { states ->
                     if (states.last() != GroupState.DISCUSSION) {
                         states.add(GroupState.DISCUSSION)
@@ -126,14 +123,30 @@ suspend fun KotlinPlugin.startBot() {
             val doc = docList.removeAt(index)
             withContext(Dispatchers.IO) {
                 val xwpfDocument = doc.build(group.id)
-                StorageConfig
-                    .getDocPath(StorageConfig.genDocName(null, group.id), group.id).apply {
-                        createNewFile()
+                val docName = StorageConfig.genDocName(null)
+                val docFile = StorageConfig
+                    .getDocPath(docName, group.id).apply {
+                        if (!exists()) {
+                            createNewFile()
+                        }
                     }
-                    .outputStream().use {
-                        xwpfDocument.write(it)
-                    }
-                subject.sendMessage("保存成功")
+
+                docFile.outputStream().use {
+                    xwpfDocument.write(it)
+                }
+                // inc the number
+                props.setProperty(
+                    ConfigKey.DOC_NUMBERS,
+                    (props.getProperty(ConfigKey.DOC_NUMBERS).toInt() + 1).toString()
+                )
+                subject.sendMessage("ok~")
+
+                // 上传
+                docFile.toExternalResource().use {
+                    group.files.root.createFolder("原始问题记录").uploadNewFile(docName, it)
+                }
+
+
             }
 
 
@@ -151,7 +164,7 @@ suspend fun KotlinPlugin.startBot() {
         }
 
         if (props.getProperty(ConfigKey.GREED_MODE, "true") == "true"
-            || message.filterIsInstance<Image>().isNotEmpty() // 图片默认也上传
+            || message.filterIsInstance<FileMessage>().isNotEmpty() // 图片默认也上传
         ) {
             // 所有数据都获取
             val msgItem = this.msg2DocMsgItem()
@@ -211,6 +224,3 @@ suspend fun KotlinPlugin.startBot() {
 //                }
 //        }
 }
-
-// message 解析
-
