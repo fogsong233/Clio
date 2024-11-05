@@ -57,7 +57,7 @@ suspend fun MessageContent.toDocMsgContent(group: Group): ChatMsgContent {
             // 先下载
             if (name.split(".").last() in listOf("jpg", "png", "jpeg")) {
                 toAbsoluteFile(group)?.apply {
-                    val downloadUrl = getUrl()?.download(name)
+                    getUrl()?.download(name)
                 }
             }
             return ChatMsgContent(
@@ -110,3 +110,4 @@ suspend fun String.download(
         }
     }
 }
+

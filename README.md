@@ -1,14 +1,14 @@
-![](./github/title.png)
+![](./github/title.jpg)
 ## Clio
 A QQ group auto logger of the discussion among people
 which can generate the document to the group file.  
-Powered by [Miral](https://github.com/mamoe/mirai)  
+Powered by [Mirai](https://github.com/mamoe/mirai)  
 *maybe you should have the operator power!*
 > how to use it?
 
 You can just download the .jar release and add it to you plugins.  
 **And** remember, you need to add a config file to ./data/tech.fogsong.qqlogger.clio/  
-name: 
+name: config.properties
 ```properties
 # we will change it automatically! dont change it!
 doc_numbers=1

@@ -10,6 +10,7 @@ import net.mamoe.mirai.event.events.GroupMessageEvent
 import net.mamoe.mirai.event.whileSelectMessages
 import net.mamoe.mirai.message.data.FileMessage
 import net.mamoe.mirai.utils.ExternalResource.Companion.toExternalResource
+import org.apache.poi.xwpf.usermodel.XWPFDocument
 import tech.fogsong.docx.DocFlow
 import tech.fogsong.docx.GroupState
 import tech.fogsong.filterInEnableGroup
@@ -65,13 +66,13 @@ suspend fun KotlinPlugin.startBot() {
         when {
             rawMsg.startsWith(startMultipleKey) -> {
                 stateStack[group.id]!!.add(GroupState.QUESTION)
-                subject.sendMessage("开始录制")
+                subject.sendMessage("log start~")
                 val beforeTime = System.currentTimeMillis()
                 whileSelectMessages {
                     val newDocFlow = DocFlow.create()
                     startMultipleKey {
 //                            docList.add(newDocFlow)
-                        subject.sendMessage("记录完毕")
+                        subject.sendMessage("discussing~")
                         docList.add(newDocFlow)
                         stateStack[group.id]!!.let { states ->
                             states.removeLast()
@@ -95,10 +96,10 @@ suspend fun KotlinPlugin.startBot() {
             }
 
             rawMsg.startsWith(startDoubleKey) -> {
-                val newDocFlow = DocFlow.create()
+                DocFlow.create()
                     .addQuestionMsg(this.msg2DocMsgItem())
                     .let { docList.add(it) }
-                subject.sendMessage("clio~")
+                subject.sendMessage("log start~")
                 stateStack[group.id]!!.let { states ->
                     if (states.last() != GroupState.DISCUSSION) {
                         states.add(GroupState.DISCUSSION)
@@ -113,47 +114,22 @@ suspend fun KotlinPlugin.startBot() {
         val key = props.getProperty(ConfigKey.KEY_SYMBOL, "#")
         val docList = openingDocs[group.id]!!
         val regex4End = Regex("^${key}end\\d+$")
+        // end the doc
         if (regex4End.matches(rawMsg)) {
             val index = rawMsg.split("d").last().toInt() - 1
             if (index < 0 || index >= docList.size) {
                 subject.sendMessage("非法问题，请重试")
                 return
             }
-            stateStack[group.id]!!.removeLast()
             val doc = docList.removeAt(index)
-            withContext(Dispatchers.IO) {
-                val xwpfDocument = doc.build(group.id)
-                val docName = StorageConfig.genDocName(null)
-                val docFile = StorageConfig
-                    .getDocPath(docName, group.id).apply {
-                        if (!exists()) {
-                            createNewFile()
-                        }
-                    }
-
-                docFile.outputStream().use {
-                    xwpfDocument.write(it)
-                }
-                // inc the number
-                props.setProperty(
-                    ConfigKey.DOC_NUMBERS,
-                    (props.getProperty(ConfigKey.DOC_NUMBERS).toInt() + 1).toString()
-                )
-                subject.sendMessage("ok~")
-
-                // 上传
-                docFile.toExternalResource().use {
-                    group.files.root.createFolder("原始问题记录").uploadNewFile(docName, it)
-                }
-
-
+            saveDoc(this, doc.build(group.id))
+            if (docList.size == 0 && stateStack[group.id]!!.last() == GroupState.DISCUSSION) {
+                stateStack[group.id]!!.removeLast()
             }
-
-
             return
         }
         val regex = Regex("${key}\\d+$")
-        if (regex.matches(rawMsg)) { // 特定匹配
+        if (regex.containsMatchIn(rawMsg)) { // 特定匹配
             val index = rawMsg.split(key).last().toInt() - 1
             if (index < 0 || index >= docList.size) {
                 subject.sendMessage("非法问题，请重试")
@@ -180,33 +156,62 @@ suspend fun KotlinPlugin.startBot() {
         .filterIsInstance<GroupMessageEvent>()
         .filterInEnableGroup()
         .apply {
-            println("now state: ${stateStack.toString()}")
-            // questions
+            println("now state: $stateStack")
             subscribeAlways<GroupMessageEvent> {
+
+                // 指令
+                val rawMsg = message.contentToString()
+                val key = props.getProperty(ConfigKey.KEY_SYMBOL, "#")
+                val startDoubleKey = key.repeat(2)
+
+                if (rawMsg == "${key}EndAll$key") {
+                    // 清除所有未关闭doc
+                    val docList = openingDocs[group.id]!!
+                    docList.forEach {
+                        saveDoc(this, it.build(group.id))
+                    }
+                    subject.sendMessage("save all ${docList.size} doc")
+                    subject.sendMessage("uploaded")
+                    docList.clear()
+                    stateStack[group.id]!!.apply {
+                        clear()
+                        add(GroupState.NONE)
+                    }
+                    return@subscribeAlways
+                }
+                if (rawMsg == "${key}list${key}") {
+                    subject.sendMessage(StringBuilder().apply {
+                        append("当前docList数：${openingDocs[group.id]!!.size}")
+                    }.toString())
+                    return@subscribeAlways
+                }
+
+                if (rawMsg == "${key}state${key}") {
+                    val stateStr = when (stateStack[group.id]!!.last()) {
+                        GroupState.NONE -> "None"
+                        GroupState.QUESTION -> "Question"
+                        GroupState.DISCUSSION -> "Discussion"
+                        GroupState.SUMMARY -> "summary"
+                    }
+                    subject.sendMessage("state: $stateStr")
+                }
+
+                // questions
                 if (stateStack[group.id]!!.last()
-                    in listOf(GroupState.DISCUSSION, GroupState.NONE)
+                    in listOf(GroupState.DISCUSSION, GroupState.NONE) && rawMsg.startsWith(startDoubleKey)
                 ) {
                     questionProcess()
+                    return@subscribeAlways
                 }
-            }
-            // discussion
-            subscribeAlways<GroupMessageEvent> {
+
+                // discussion
                 if (stateStack[group.id]!!.last() == GroupState.DISCUSSION) {
                     discussionProcess()
+                    return@subscribeAlways
                 }
             }
 
-            // 指令
-            subscribeAlways<GroupMessageEvent> {
-                val rawMsg = message.contentToString()
-                if (rawMsg == props.getProperty(ConfigKey.KEY_SYMBOL, "#") + "EndAll") {
-                    // 清除所有未关闭doc
-                    // TODO: 结束文档
-                }
-            }
-        }
-
-    // test
+            // test
 //    GlobalEventChannel
 //        .subscribeAlways<GroupMessageEvent> { groupMessageEvent ->
 //            println("aa" + message.contentToString())
@@ -223,4 +228,32 @@ suspend fun KotlinPlugin.startBot() {
 //                    }
 //                }
 //        }
+        }
+}
+
+suspend fun saveDoc(groupMessageEvent: GroupMessageEvent, xwpfDocument: XWPFDocument) {
+    withContext(Dispatchers.IO) {
+        val docName = StorageConfig.genDocName(null)
+        val docFile = StorageConfig
+            .getDocPath(docName, groupMessageEvent.group.id).apply {
+                if (!exists()) {
+                    createNewFile()
+                }
+            }
+
+        docFile.outputStream().use {
+            xwpfDocument.write(it)
+        }
+        // inc the number
+        props.setProperty(
+            ConfigKey.DOC_NUMBERS,
+            (props.getProperty(ConfigKey.DOC_NUMBERS).toInt() + 1).toString()
+        )
+        groupMessageEvent.subject.sendMessage("upload~")
+
+        // 上传
+        docFile.toExternalResource().use {
+            groupMessageEvent.group.files.root.createFolder("原始问题记录").uploadNewFile(docName, it)
+        }
+    }
 }
